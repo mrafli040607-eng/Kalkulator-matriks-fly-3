@@ -825,7 +825,29 @@ st.divider()
 st.caption(
     "Kalkulator Matriks | "
     "Python + Streamlit + NumPy + Pandas"
-    )emen pada diagonal utama."
+    st.subheader("📖 Langkah Penyelesaian")
+
+st.write(
+    "Trace diperoleh dengan menjumlahkan "
+    "elemen pada diagonal utama."
+)
+
+diagonal = []
+
+for i in range(int(baris_a)):
+    diagonal.append(
+        angka(A[i, i])
+    )
+
+ekspresi = " + ".join(diagonal)
+
+st.latex(
+    rf"Tr(A) = {ekspresi}"
+)
+
+st.latex(
+    rf"Tr(A) = {angka(hasil)}"
+    )
     )
 
     elemen = [
