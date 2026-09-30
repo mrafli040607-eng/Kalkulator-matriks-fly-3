@@ -1,7 +1,7 @@
+```python
 import streamlit as st
 import numpy as np
 import pandas as pd
-
 
 # =========================================================
 # KONFIGURASI
@@ -13,16 +13,10 @@ st.set_page_config(
     layout="centered"
 )
 
-
-# =========================================================
-# JUDUL
-# =========================================================
-
 st.title("🔢 Kalkulator Matriks")
-
 st.write(
-    "Kalkulator matriks menggunakan Python, "
-    "NumPy, Pandas, dan Streamlit."
+    "Kalkulator matriks dengan hasil dan langkah-langkah "
+    "perhitungan."
 )
 
 st.divider()
@@ -32,19 +26,76 @@ st.divider()
 # FUNGSI FORMAT ANGKA
 # =========================================================
 
-def format_angka(nilai):
+def fmt(x):
+    """Format angka agar lebih mudah dibaca."""
 
-    if abs(nilai - round(nilai)) < 1e-10:
-        return str(int(round(nilai)))
+    if abs(float(x)) < 1e-10:
+        x = 0
 
-    return f"{nilai:.4f}"
+    if float(x).is_integer():
+        return str(int(x))
+
+    return f"{float(x):.4f}".rstrip("0").rstrip(".")
+
+
+# =========================================================
+# FUNGSI MENAMPILKAN DATAFRAME
+# =========================================================
+
+def tampilkan_df(matrix):
+
+    df = pd.DataFrame(
+        matrix,
+        index=[
+            f"R{i + 1}"
+            for i in range(matrix.shape[0])
+        ],
+        columns=[
+            f"C{j + 1}"
+            for j in range(matrix.shape[1])
+        ]
+    )
+
+    st.dataframe(
+        df,
+        use_container_width=True
+    )
+
+
+# =========================================================
+# FUNGSI MENAMPILKAN MATRKS DALAM LATEX
+# =========================================================
+
+def latex_matrix(A, nama=None):
+
+    isi = r"\\".join(
+        " & ".join(fmt(x) for x in row)
+        for row in A
+    )
+
+    if nama is not None:
+
+        st.latex(
+            rf"{nama}="
+            rf"\begin{{bmatrix}}"
+            rf"{isi}"
+            rf"\end{{bmatrix}}"
+        )
+
+    else:
+
+        st.latex(
+            rf"\begin{{bmatrix}}"
+            rf"{isi}"
+            rf"\end{{bmatrix}}"
+        )
 
 
 # =========================================================
 # FUNGSI INPUT MATRIKS
 # =========================================================
 
-def input_matriks(nama, baris, kolom, key):
+def buat_matriks(nama, baris, kolom, key):
 
     st.subheader(nama)
 
@@ -53,7 +104,7 @@ def input_matriks(nama, baris, kolom, key):
         dtype=float
     )
 
-    data = pd.DataFrame(
+    df_awal = pd.DataFrame(
         data_awal,
         index=[
             f"Baris {i + 1}"
@@ -65,336 +116,254 @@ def input_matriks(nama, baris, kolom, key):
         ]
     )
 
-    hasil_input = st.data_editor(
-        data,
+    data = st.data_editor(
+        df_awal,
         key=key,
-        use_container_width=True,
-        num_rows="fixed"
-    )
-
-    return hasil_input.to_numpy(dtype=float)
-
-
-# =========================================================
-# FUNGSI MENAMPILKAN MATRIKS
-# =========================================================
-
-def tampilkan_matriks(A):
-
-    df = pd.DataFrame(
-        A,
-        index=[
-            f"Baris {i + 1}"
-            for i in range(A.shape[0])
-        ],
-        columns=[
-            f"Kolom {j + 1}"
-            for j in range(A.shape[1])
-        ]
-    )
-
-    st.dataframe(
-        df,
+        num_rows="fixed",
         use_container_width=True
     )
 
+    return data.to_numpy(dtype=float)
+
 
 # =========================================================
-# FUNGSI LANGKAH PENJUMLAHAN
+# FUNGSI OPERASI BARIS
 # =========================================================
 
-def langkah_penjumlahan(A, B):
+def operasi_baris_teks(target, sumber, faktor):
 
-    st.subheader("📖 Langkah Penyelesaian")
+    target_sub = target + 1
+    sumber_sub = sumber + 1
 
-    st.write(
-        "Setiap elemen pada Matriks A dijumlahkan "
-        "dengan elemen Matriks B pada posisi yang sama."
+    if abs(faktor) < 1e-10:
+        return ""
+
+    if faktor == 1:
+        return (
+            f"R{target_sub} → "
+            f"R{target_sub} + R{sumber_sub}"
+        )
+
+    if faktor == -1:
+        return (
+            f"R{target_sub} → "
+            f"R{target_sub} − R{sumber_sub}"
+        )
+
+    tanda = "+" if faktor > 0 else "−"
+
+    nilai = abs(faktor)
+
+    return (
+        f"R{target_sub} → "
+        f"R{target_sub} {tanda} "
+        f"{fmt(nilai)}R{sumber_sub}"
     )
 
-    for i in range(A.shape[0]):
 
-        for j in range(A.shape[1]):
+# =========================================================
+# GAUSS ELIMINATION
+# =========================================================
 
-            hasil = A[i, j] + B[i, j]
+def gauss_elimination(A):
 
-            st.write(
-                "C[{},{}] = {} + {} = {}".format(
-                    i + 1,
-                    j + 1,
-                    format_angka(A[i, j]),
-                    format_angka(B[i, j]),
-                    format_angka(hasil)
+    M = A.astype(float).copy()
+
+    langkah = []
+
+    baris, kolom = M.shape
+
+    pivot_row = 0
+
+    for col in range(kolom):
+
+        if pivot_row >= baris:
+            break
+
+        # Cari pivot terbesar
+        kandidat = np.argmax(
+            np.abs(M[pivot_row:, col])
+        )
+
+        pivot = pivot_row + kandidat
+
+        if abs(M[pivot, col]) < 1e-10:
+            continue
+
+        # Tukar baris jika diperlukan
+        if pivot != pivot_row:
+
+            M[[pivot_row, pivot]] = M[[pivot, pivot_row]]
+
+            langkah.append(
+                (
+                    f"R{pivot_row + 1} ↔ "
+                    f"R{pivot + 1}",
+                    M.copy()
                 )
             )
 
+        # Hilangkan elemen di bawah pivot
+        for r in range(
+            pivot_row + 1,
+            baris
+        ):
+
+            if abs(M[r, col]) < 1e-10:
+                continue
+
+            faktor = (
+                M[r, col] /
+                M[pivot_row, col]
+            )
+
+            M[r] = (
+                M[r] -
+                faktor * M[pivot_row]
+            )
+
+            M[np.abs(M) < 1e-10] = 0
+
+            teks = operasi_baris_teks(
+                r,
+                pivot_row,
+                -faktor
+            )
+
+            langkah.append(
+                (teks, M.copy())
+            )
+
+        pivot_row += 1
+
+    return M, langkah
+
 
 # =========================================================
-# FUNGSI LANGKAH PENGURANGAN
+# GAUSS-JORDAN
 # =========================================================
 
-def langkah_pengurangan(A, B):
+def gauss_jordan(A):
 
-    st.subheader("📖 Langkah Penyelesaian")
+    M = A.astype(float).copy()
 
-    st.write(
-        "Setiap elemen pada Matriks A dikurangi "
-        "dengan elemen Matriks B pada posisi yang sama."
-    )
+    langkah = []
 
-    for i in range(A.shape[0]):
+    baris, kolom = M.shape
 
-        for j in range(A.shape[1]):
+    pivot_row = 0
 
-            hasil = A[i, j] - B[i, j]
+    for col in range(kolom):
 
-            st.write(
-                "C[{},{}] = {} - {} = {}".format(
-                    i + 1,
-                    j + 1,
-                    format_angka(A[i, j]),
-                    format_angka(B[i, j]),
-                    format_angka(hasil)
+        if pivot_row >= baris:
+            break
+
+        # Cari pivot
+        kandidat = np.argmax(
+            np.abs(M[pivot_row:, col])
+        )
+
+        pivot = pivot_row + kandidat
+
+        if abs(M[pivot, col]) < 1e-10:
+            continue
+
+        # Tukar baris
+        if pivot != pivot_row:
+
+            M[[pivot_row, pivot]] = (
+                M[[pivot, pivot_row]]
+            )
+
+            langkah.append(
+                (
+                    f"R{pivot_row + 1} ↔ "
+                    f"R{pivot + 1}",
+                    M.copy()
                 )
             )
 
+        # Normalisasi pivot
+        nilai_pivot = M[pivot_row, col]
 
-# =========================================================
-# FUNGSI LANGKAH PERKALIAN
-# =========================================================
+        if abs(nilai_pivot - 1) > 1e-10:
 
-def langkah_perkalian(A, B):
+            M[pivot_row] = (
+                M[pivot_row] /
+                nilai_pivot
+            )
 
-    st.subheader("📖 Langkah Penyelesaian")
+            M[np.abs(M) < 1e-10] = 0
 
-    st.write(
-        "Setiap elemen hasil diperoleh dari "
-        "perkalian baris Matriks A dengan kolom Matriks B."
-    )
-
-    hasil = A @ B
-
-    for i in range(A.shape[0]):
-
-        for j in range(B.shape[1]):
-
-            bagian = []
-
-            for k in range(A.shape[1]):
-
-                bagian.append(
-                    "({} × {})".format(
-                        format_angka(A[i, k]),
-                        format_angka(B[k, j])
-                    )
-                )
-
-            ekspresi = " + ".join(bagian)
-
-            st.write(
-                "C[{},{}] = {} = {}".format(
-                    i + 1,
-                    j + 1,
-                    ekspresi,
-                    format_angka(hasil[i, j])
+            langkah.append(
+                (
+                    f"R{pivot_row + 1} → "
+                    f"R{pivot_row + 1} / "
+                    f"{fmt(nilai_pivot)}",
+                    M.copy()
                 )
             )
 
+        # Hilangkan semua elemen
+        # pada kolom pivot
+        for r in range(baris):
 
-# =========================================================
-# FUNGSI LANGKAH TRANSPOSE
-# =========================================================
+            if r == pivot_row:
+                continue
 
-def langkah_transpose(A):
+            faktor = M[r, col]
 
-    st.subheader("📖 Langkah Penyelesaian")
+            if abs(faktor) < 1e-10:
+                continue
 
-    st.write(
-        "Transpose dilakukan dengan mengubah setiap "
-        "baris menjadi kolom."
-    )
+            M[r] = (
+                M[r] -
+                faktor * M[pivot_row]
+            )
 
-    st.write(
-        "Ukuran awal Matriks A: {} × {}".format(
-            A.shape[0],
-            A.shape[1]
-        )
-    )
+            M[np.abs(M) < 1e-10] = 0
 
-    st.write(
-        "Ukuran setelah transpose: {} × {}".format(
-            A.shape[1],
-            A.shape[0]
-        )
-    )
+            teks = operasi_baris_teks(
+                r,
+                pivot_row,
+                -faktor
+            )
 
+            langkah.append(
+                (teks, M.copy())
+            )
 
-# =========================================================
-# FUNGSI DETERMINAN 2x2
-# =========================================================
+        pivot_row += 1
 
-def determinan_2x2(A):
-
-    a = A[0, 0]
-    b = A[0, 1]
-    c = A[1, 0]
-    d = A[1, 1]
-
-    hasil = (a * d) - (b * c)
-
-    st.subheader("📖 Langkah Penyelesaian")
-
-    st.write(
-        "Untuk matriks 2 × 2 digunakan rumus:"
-    )
-
-    st.write(
-        "det(A) = (a × d) - (b × c)"
-    )
-
-    st.write(
-        "det(A) = ({} × {}) - ({} × {})".format(
-            format_angka(a),
-            format_angka(d),
-            format_angka(b),
-            format_angka(c)
-        )
-    )
-
-    st.write(
-        "det(A) = {} - {}".format(
-            format_angka(a * d),
-            format_angka(b * c)
-        )
-    )
-
-    st.write(
-        "det(A) = {}".format(
-            format_angka(hasil)
-        )
-    )
-
-    return hasil
+    return M, langkah
 
 
 # =========================================================
-# FUNGSI DETERMINAN 3x3
+# TAMPILKAN LANGKAH
 # =========================================================
 
-def determinan_3x3(A):
+def tampilkan_langkah(langkah):
 
-    a = A[0, 0]
-    b = A[0, 1]
-    c = A[0, 2]
+    if len(langkah) == 0:
 
-    d = A[1, 0]
-    e = A[1, 1]
-    f = A[1, 2]
-
-    g = A[2, 0]
-    h = A[2, 1]
-    i = A[2, 2]
-
-    bagian1 = a * ((e * i) - (f * h))
-    bagian2 = b * ((d * i) - (f * g))
-    bagian3 = c * ((d * h) - (e * g))
-
-    hasil = bagian1 - bagian2 + bagian3
-
-    st.subheader("📖 Langkah Penyelesaian")
-
-    st.write(
-        "Menggunakan ekspansi kofaktor baris pertama."
-    )
-
-    st.write(
-        "det(A) = a(ei − fh) − b(di − fg) + c(dh − eg)"
-    )
-
-    st.write(
-        "Bagian pertama = {}".format(
-            format_angka(bagian1)
-        )
-    )
-
-    st.write(
-        "Bagian kedua = {}".format(
-            format_angka(bagian2)
-        )
-    )
-
-    st.write(
-        "Bagian ketiga = {}".format(
-            format_angka(bagian3)
-        )
-    )
-
-    st.write(
-        "det(A) = {} − {} + {} = {}".format(
-            format_angka(bagian1),
-            format_angka(bagian2),
-            format_angka(bagian3),
-            format_angka(hasil)
-        )
-    )
-
-    return hasil
-
-
-# =========================================================
-# FUNGSI INVERS 2x2
-# =========================================================
-
-def invers_2x2(A):
-
-    a = A[0, 0]
-    b = A[0, 1]
-    c = A[1, 0]
-    d = A[1, 1]
-
-    det = (a * d) - (b * c)
-
-    st.subheader("📖 Langkah Penyelesaian")
-
-    st.write(
-        "Rumus invers matriks 2 × 2:"
-    )
-
-    st.write(
-        "A⁻¹ = 1/(ad − bc) × "
-        "[ d  −b ; −c  a ]"
-    )
-
-    st.write(
-        "det(A) = ({} × {}) − ({} × {}) = {}".format(
-            format_angka(a),
-            format_angka(d),
-            format_angka(b),
-            format_angka(c),
-            format_angka(det)
-        )
-    )
-
-    if abs(det) < 1e-10:
-
-        st.error(
-            "Determinan = 0. Matriks tidak mempunyai invers."
+        st.info(
+            "Tidak ada operasi baris yang diperlukan."
         )
 
-        return None
+        return
 
-    hasil = np.linalg.inv(A)
+    for nomor, (teks, matrix) in enumerate(
+        langkah,
+        start=1
+    ):
 
-    st.write(
-        "Karena determinan tidak sama dengan 0, "
-        "maka matriks mempunyai invers."
-    )
+        st.markdown(
+            f"**Langkah {nomor}: {teks}**"
+        )
 
-    st.write("Hasil invers:")
+        latex_matrix(matrix)
 
-    tampilkan_matriks(hasil)
-
-    return hasil
+        st.write("")
 
 
 # =========================================================
@@ -402,7 +371,7 @@ def invers_2x2(A):
 # =========================================================
 
 operasi = st.selectbox(
-    "⚙️ Pilih Operasi",
+    "Pilih Operasi Matriks",
     [
         "Penjumlahan",
         "Pengurangan",
@@ -417,29 +386,29 @@ operasi = st.selectbox(
 
 
 # =========================================================
-# MATRIKS A
+# UKURAN A
 # =========================================================
 
 st.divider()
 
 st.header("Matriks A")
 
-col_a1, col_a2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-with col_a1:
+with col1:
 
     baris_a = st.number_input(
-        "Baris A",
+        "Jumlah Baris A",
         min_value=1,
         max_value=10,
         value=2,
         step=1
     )
 
-with col_a2:
+with col2:
 
     kolom_a = st.number_input(
-        "Kolom A",
+        "Jumlah Kolom A",
         min_value=1,
         max_value=10,
         value=2,
@@ -447,16 +416,20 @@ with col_a2:
     )
 
 
-A = input_matriks(
+# =========================================================
+# INPUT A
+# =========================================================
+
+A = buat_matriks(
     "Masukkan nilai Matriks A",
     int(baris_a),
     int(kolom_a),
-    "matriks_A"
+    f"A_{baris_a}_{kolom_a}"
 )
 
 
 # =========================================================
-# MATRIKS B
+# INPUT B
 # =========================================================
 
 B = None
@@ -471,37 +444,507 @@ if operasi in [
 
     st.header("Matriks B")
 
-    col_b1, col_b2 = st.columns(2)
+    col3, col4 = st.columns(2)
 
-    with col_b1:
+    with col3:
 
         baris_b = st.number_input(
-            "Baris B",
+            "Jumlah Baris B",
             min_value=1,
             max_value=10,
             value=2,
             step=1
         )
 
-    with col_b2:
+    with col4:
 
         kolom_b = st.number_input(
-            "Kolom B",
+            "Jumlah Kolom B",
             min_value=1,
             max_value=10,
             value=2,
             step=1
         )
 
-    B = input_matriks(
+    if operasi == "Penjumlahan":
+
+        st.info(
+            "Syarat: ukuran A dan B harus sama."
+        )
+
+    elif operasi == "Pengurangan":
+
+        st.info(
+            "Syarat: ukuran A dan B harus sama."
+        )
+
+    elif operasi == "Perkalian":
+
+        st.info(
+            "Syarat: jumlah kolom A "
+            "harus sama dengan jumlah baris B."
+        )
+
+    B = buat_matriks(
         "Masukkan nilai Matriks B",
         int(baris_b),
         int(kolom_b),
-        "matriks_B"
+        f"B_{baris_b}_{kolom_b}"
     )
 
 
 # =========================================================
+# TOMBOL
+# =========================================================
+
+st.divider()
+
+hitung = st.button(
+    "🔢 HITUNG",
+    type="primary",
+    use_container_width=True
+)
+
+
+# =========================================================
+# PERHITUNGAN
+# =========================================================
+
+if hitung:
+
+    # =====================================================
+    # PENJUMLAHAN
+    # =====================================================
+
+    if operasi == "Penjumlahan":
+
+        if A.shape != B.shape:
+
+            st.error(
+                "Penjumlahan tidak dapat dilakukan "
+                "karena ukuran matriks berbeda."
+            )
+
+        else:
+
+            hasil = A + B
+
+            st.success(
+                "Penjumlahan berhasil!"
+            )
+
+            st.subheader(
+                "📚 Langkah Perhitungan"
+            )
+
+            latex_matrix(A, "A")
+            latex_matrix(B, "B")
+
+            st.write(
+                "Setiap elemen A dijumlahkan "
+                "dengan elemen B yang bersesuaian."
+            )
+
+            for i in range(A.shape[0]):
+
+                for j in range(A.shape[1]):
+
+                    st.latex(
+                        rf"c_{{{i+1},{j+1}}}"
+                        rf"="
+                        rf"{fmt(A[i,j])}"
+                        rf"+"
+                        rf"{fmt(B[i,j])}"
+                        rf"="
+                        rf"{fmt(hasil[i,j])}"
+                    )
+
+            st.subheader("Hasil")
+
+            latex_matrix(
+                hasil,
+                "A+B"
+            )
+
+
+    # =====================================================
+    # PENGURANGAN
+    # =====================================================
+
+    elif operasi == "Pengurangan":
+
+        if A.shape != B.shape:
+
+            st.error(
+                "Pengurangan tidak dapat dilakukan "
+                "karena ukuran matriks berbeda."
+            )
+
+        else:
+
+            hasil = A - B
+
+            st.success(
+                "Pengurangan berhasil!"
+            )
+
+            st.subheader(
+                "📚 Langkah Perhitungan"
+            )
+
+            latex_matrix(A, "A")
+            latex_matrix(B, "B")
+
+            for i in range(A.shape[0]):
+
+                for j in range(A.shape[1]):
+
+                    st.latex(
+                        rf"c_{{{i+1},{j+1}}}"
+                        rf"="
+                        rf"{fmt(A[i,j])}"
+                        rf"-"
+                        rf"{fmt(B[i,j])}"
+                        rf"="
+                        rf"{fmt(hasil[i,j])}"
+                    )
+
+            st.subheader("Hasil")
+
+            latex_matrix(
+                hasil,
+                "A-B"
+            )
+
+
+    # =====================================================
+    # PERKALIAN
+    # =====================================================
+
+    elif operasi == "Perkalian":
+
+        if A.shape[1] != B.shape[0]:
+
+            st.error(
+                "Perkalian tidak dapat dilakukan."
+            )
+
+            st.write(
+                f"Kolom A = {A.shape[1]}"
+            )
+
+            st.write(
+                f"Baris B = {B.shape[0]}"
+            )
+
+            st.latex(
+                r"""
+                \text{Kolom A}
+                \neq
+                \text{Baris B}
+                """
+            )
+
+        else:
+
+            hasil = A @ B
+
+            st.success(
+                "Perkalian berhasil!"
+            )
+
+            st.subheader(
+                "📚 Langkah Perhitungan"
+            )
+
+            st.write(
+                f"A berukuran "
+                f"{A.shape[0]} × {A.shape[1]}"
+            )
+
+            st.write(
+                f"B berukuran "
+                f"{B.shape[0]} × {B.shape[1]}"
+            )
+
+            st.write(
+                "Setiap elemen hasil diperoleh "
+                "dari perkalian baris A dengan "
+                "kolom B."
+            )
+
+            for i in range(A.shape[0]):
+
+                for j in range(B.shape[1]):
+
+                    bagian = []
+
+                    for k in range(A.shape[1]):
+
+                        bagian.append(
+                            f"({fmt(A[i,k])})"
+                            f"({fmt(B[k,j])})"
+                        )
+
+                    persamaan = "+".join(
+                        bagian
+                    )
+
+                    st.latex(
+                        rf"c_{{{i+1},{j+1}}}"
+                        rf"="
+                        rf"{persamaan}"
+                        rf"="
+                        rf"{fmt(hasil[i,j])}"
+                    )
+
+            st.subheader("Hasil")
+
+            latex_matrix(
+                hasil,
+                "AB"
+            )
+
+
+    # =====================================================
+    # TRANSPOSE
+    # =====================================================
+
+    elif operasi == "Transpose":
+
+        hasil = A.T
+
+        st.success(
+            "Transpose berhasil!"
+        )
+
+        st.subheader(
+            "📚 Langkah Perhitungan"
+        )
+
+        latex_matrix(A, "A")
+
+        st.write(
+            "Transpose dilakukan dengan "
+            "mengubah baris menjadi kolom."
+        )
+
+        for i in range(A.shape[0]):
+
+            for j in range(A.shape[1]):
+
+                st.latex(
+                    rf"a_{{{i+1},{j+1}}}"
+                    rf"\rightarrow"
+                    rf"a^T_{{{j+1},{i+1}}}"
+                    rf"="
+                    rf"{fmt(A[i,j])}"
+                )
+
+        st.subheader("Hasil")
+
+        latex_matrix(
+            hasil,
+            "A^T"
+        )
+
+
+    # =====================================================
+    # DETERMINAN
+    # =====================================================
+
+    elif operasi == "Determinan":
+
+        if baris_a != kolom_a:
+
+            st.error(
+                "Determinan hanya dapat dihitung "
+                "untuk matriks persegi."
+            )
+
+        else:
+
+            n = A.shape[0]
+
+            st.subheader(
+                "📚 Langkah Perhitungan"
+            )
+
+            latex_matrix(A, "A")
+
+            # -------------------------------------------------
+            # 1 x 1
+            # -------------------------------------------------
+
+            if n == 1:
+
+                hasil = A[0, 0]
+
+                st.latex(
+                    rf"\det(A)={fmt(hasil)}"
+                )
+
+            # -------------------------------------------------
+            # 2 x 2
+            # -------------------------------------------------
+
+            elif n == 2:
+
+                a = A[0, 0]
+                b = A[0, 1]
+                c = A[1, 0]
+                d = A[1, 1]
+
+                st.latex(
+                    r"""
+                    \det(A)=ad-bc
+                    """
+                )
+
+                st.latex(
+                    rf"""
+                    \det(A)
+                    =
+                    ({fmt(a)})({fmt(d)})
+                    -
+                    ({fmt(b)})({fmt(c)})
+                    """
+                )
+
+                hasil = (
+                    a*d -
+                    b*c
+                )
+
+                st.latex(
+                    rf"""
+                    ={fmt(a*d)}
+                    -
+                    {fmt(b*c)}
+                    =
+                    {fmt(hasil)}
+                    """
+                )
+
+            # -------------------------------------------------
+            # 3 x 3
+            # -------------------------------------------------
+
+            elif n == 3:
+
+                a, b, c = A[0]
+                d, e, f = A[1]
+                g, h, i = A[2]
+
+                st.latex(
+                    r"""
+                    \det(A)
+                    =
+                    a(ei-fh)
+                    -
+                    b(di-fg)
+                    +
+                    c(dh-eg)
+                    """
+                )
+
+                bagian1 = e*i - f*h
+                bagian2 = d*i - f*g
+                bagian3 = d*h - e*g
+
+                st.latex(
+                    rf"""
+                    =
+                    ({fmt(a)})({fmt(bagian1)})
+                    -
+                    ({fmt(b)})({fmt(bagian2)})
+                    +
+                    ({fmt(c)})({fmt(bagian3)})
+                    """
+                )
+
+                hasil = (
+                    a*bagian1
+                    -
+                    b*bagian2
+                    +
+                    c*bagian3
+                )
+
+                st.latex(
+                    rf"\det(A)={fmt(hasil)}"
+                )
+
+            # -------------------------------------------------
+            # > 3 x 3
+            # -------------------------------------------------
+
+            else:
+
+                hasil = np.linalg.det(A)
+
+                st.write(
+                    "Untuk matriks berukuran "
+                    "lebih dari 3 × 3, digunakan "
+                    "eliminasi Gauss."
+                )
+
+                U, langkah = gauss_elimination(A)
+
+                tampilkan_langkah(
+                    langkah
+                )
+
+                diagonal = np.diag(U)
+
+                st.write(
+                    "Setelah matriks berada dalam "
+                    "bentuk segitiga atas:"
+                )
+
+                latex_matrix(
+                    U
+                )
+
+                st.write(
+                    "Determinan diperoleh dari "
+                    "perkalian elemen diagonal "
+                    "utama, dengan memperhatikan "
+                    "pertukaran baris."
+                )
+
+                st.latex(
+                    rf"\det(A)={fmt(hasil)}"
+                )
+
+            st.success(
+                f"Determinan = {fmt(hasil)}"
+            )
+
+
+    # =====================================================
+    # INVERS
+    # =====================================================
+
+    elif operasi == "Invers":
+
+        if baris_a != kolom_a:
+
+            st.error(
+                "Invers hanya dapat dihitung "
+                "untuk matriks persegi."
+            )
+
+        else:
+
+            det = np.linalg.det(A)
+
+            st.subheader(
+                "📚 Langkah Perhitungan"
+            )
+
+            latex_matrix(A, "A")
+=========================
 # TOMBOL HITUNG
 # =========================================================
 
