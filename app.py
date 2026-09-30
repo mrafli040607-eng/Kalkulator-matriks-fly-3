@@ -1311,7 +1311,9 @@ st.divider()
 st.caption(
     "Kalkulator Matriks | "
     "Python + Streamlit + NumPy + Pandas"
-    )warning(
+    )
+(
+    
                 "Ukuran kedua matriks harus sama."
             )
 
